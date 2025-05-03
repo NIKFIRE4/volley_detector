@@ -1,0 +1,16 @@
+# botsort_players.yaml
+tracker_type: botsort
+track_high_thresh: 0.15
+track_low_thresh: 0.1
+new_track_thresh: 0.7
+track_buffer: 60
+match_thresh: 0.6
+fuse_score: True
+proximity_thresh: 0.6
+appearance_thresh: 0.25
+gmc_method: sparseOptFlow
+with_reid: True
+reid_model: osnet_x0_25
+# min_box_area: 500
+
+
