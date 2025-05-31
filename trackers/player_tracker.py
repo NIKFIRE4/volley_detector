@@ -6,12 +6,37 @@ sys.path.append('../')
 from utils import measure_distance, get_center_of_bbox
 
 class PlayerTracker:
-    def __init__(self,model_path):
+    def __init__(self, model_path):
         self.model = YOLO(model_path)
+        self.all_detections = {}  # Словарь для хранения всех детекций
 
-    def track(self, frames, show=False, tracker=None):
-        return self.model.track(frames, show=show, tracker=tracker)
+    def track(self, frames, frame_idx=0, show=False, tracker=None,
+              read_from_stub=False, stub_path=None):
+        # 1) Попытаться загрузить из stub
+        if read_from_stub and stub_path and not self.all_detections:
+            with open(stub_path, 'rb') as f:
+                self.all_detections = pickle.load(f)
 
+        # Если уже есть результаты для данного frame_idx, вернуть их сразу
+        if frame_idx in self.all_detections:
+            return self.all_detections[frame_idx]
+
+        # 2) Выполнить трекинг
+        tracked_list = self.model.track(frames, show=show, tracker=tracker)
+        # Здесь предполагаем tracked_list — список результатов для каждого кадра
+
+        # 3) Записать в словарь с правильными ключами
+        for offset, detection in enumerate(tracked_list):
+            idx = frame_idx + offset
+            self.all_detections[idx] = detection
+
+        # Пересохранить stub
+        if stub_path:
+            with open(stub_path, 'wb') as f:
+                pickle.dump(self.all_detections, f)
+
+        # Если был один кадр, может вернуть сразу элемент, иначе весь список
+        return tracked_list
     # def choose_and_filter_players(self, court_keypoints, player_detections):
     #     player_detections_first_frame = player_detections[0]
     #     chosen_player = self.choose_players(court_keypoints, player_detections_first_frame)
@@ -41,24 +66,7 @@ class PlayerTracker:
     #     return chosen_players
 
 
-    # def detect_frames(self,frames, read_from_stub=False, stub_path=None):
-    #     player_detections = []
-
-    #     if read_from_stub and stub_path is not None:
-    #         with open(stub_path, 'rb') as f:
-    #             player_detections = pickle.load(f)
-    #         return player_detections
-
-    #     for frame in frames:
-    #         player_dict = self.detect_frame(frame)
-    #         player_detections.append(player_dict)
-        
-    #     if stub_path is not None:
-    #         with open(stub_path, 'wb') as f:
-    #             pickle.dump(player_detections, f)
-        
-    #     return player_detections
-
+    
     def detect_frame(self,frame):
         results = self.model.track(frame)[0]
         id_name_dict = results.names
@@ -74,45 +82,40 @@ class PlayerTracker:
         
         return player_dict
 
-    def draw_bboxes(self, frames, results_list):
-        """
-        Рисует bounding boxes на кадрах видео.
-        
-        Args:
-            frames (List[np.ndarray]): Список кадров видео.
-            results_list (List[ultralytics.engine.results.Results]): Результаты отслеживания YOLO.
-            
-        Returns:
-            List[np.ndarray]: Кадры с нарисованными bounding boxes.
-        """
-        output_frames = []
+    def draw_bboxes(self, video_frames, results_list):
+        output_video_frames = []
+        for frame, results in zip(video_frames, results_list):
+            annotated = frame.copy()
 
-        for frame, results in zip(frames, results_list):
-            annotated_frame = frame.copy()
-
-            if results.boxes is not None:
+            # если это Results из ultralytics
+            if hasattr(results, 'boxes'):
+                # сначала сконвертим его в dict, чтобы не дублировать логику
+                tmp = {}
                 for box in results.boxes:
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])  # Координаты bounding box
-                    track_id = int(box.id.item()) if box.id is not None else None  # ID трека
-                    conf = float(box.conf)  # Уверенность
+                    if results.names[int(box.cls)] == "player":
+                        tid = int(box.id.item()) if box.id is not None else None
+                        tmp[tid] = box.xyxy[0].tolist()
+                player_dict = tmp
+            else:
+                # уже готовый dict
+                player_dict = results
 
-                    # Рисуем bounding box
-                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            # рисуем
+            for track_id, bbox in player_dict.items():
+                x1, y1, x2, y2 = map(int, bbox)
+                cv2.putText(
+                    annotated,
+                    f"Player ID: {track_id}",
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.9,
+                    (0, 0, 255),
+                    2
+                )
+                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
-                    # (Опционально) Пишем ID трека и уверенность
-                    label = f"{track_id}: {conf:.2f}" if track_id is not None else f"{conf:.2f}"
-                    cv2.putText(
-                        annotated_frame,
-                        label,
-                        (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        (0, 255, 0),
-                        2
-                    )
+            output_video_frames.append(annotated)
 
-            output_frames.append(annotated_frame)
-
-        return output_frames
+        return output_video_frames
 
     

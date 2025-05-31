@@ -80,23 +80,20 @@ class BallTracker:
     #     return frame_nums_with_ball_hits
 
     
-
     def get_ball_shot_frames(self, ball_positions):
         rows = []
-        if not ball_positions:
-            return []
+        
+        for frame_idx, res in enumerate(ball_positions):
+    # res — это ultralytics.engine.results.Results
+            boxes = res.boxes  # Boxes object
             
-        # Собираем данные по всем кадрам
-        for frame_idx, res in ball_positions.items():
-            if res is None:
-                rows.append({'frame_idx': frame_idx, 'x1': None, 'y1': None, 'x2': None, 'y2': None})
-                continue
-                
-            boxes = res.boxes
-            if boxes and len(boxes.xyxy) > 0:
+            if boxes is not None and len(boxes.xyxy) > 0:
+                # Получаем первый бокс: tensor([x1, y1, x2, y2])
+                # Конвертируем в Python list
                 coords = boxes.xyxy[0].cpu().numpy().tolist()
                 x1, y1, x2, y2 = coords
             else:
+                # Если мяч не найден
                 x1 = y1 = x2 = y2 = None
 
             rows.append({
@@ -107,16 +104,12 @@ class BallTracker:
                 'y2': y2
             })
 
-        # Создаем DataFrame и заполняем пропуски
-        df_ball_positions = pd.DataFrame(rows).set_index('frame_idx')
-        
-        # Реиндексируем чтобы заполнить пропущенные кадры
-        max_frame = df_ball_positions.index.max() if not df_ball_positions.empty else 0
-        df_ball_positions = df_ball_positions.reindex(range(max_frame + 1))
-        
-        # Интерполируем только числовые колонки
-        numeric_cols = ['x1', 'y1', 'x2', 'y2']
-        df_ball_positions[numeric_cols] = df_ball_positions[numeric_cols].interpolate().ffill().bfill()
+        df_ball_positions = (
+                pd.DataFrame(rows)
+                .sort_values('frame_idx')
+                .reset_index(drop=True)
+                )
+        df_ball_positions = df_ball_positions.interpolate().bfill()
         df_ball_positions['mid_y'] = (df_ball_positions['y1'] + df_ball_positions['y2']) / 2
         df_ball_positions['mid_y_rolling_mean'] = df_ball_positions['mid_y'].rolling(window=5, min_periods=1, center=False).mean()
         df_ball_positions["delta_y"] = df_ball_positions["mid_y_rolling_mean"].diff()
