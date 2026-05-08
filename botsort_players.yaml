@@ -1,16 +1,23 @@
 # botsort_players.yaml
 tracker_type: botsort
-track_high_thresh: 0.15
-track_low_thresh: 0.1
-new_track_thresh: 0.7
-track_buffer: 60
-match_thresh: 0.6
+
+# --- Ассоциация детекций с треками ---
+track_high_thresh: 0.3       # минимальная уверенность для "сильной" ассоциации
+track_low_thresh: 0.05       # минимальная уверенность для "слабой" ассоциации
+new_track_thresh: 0.5        # порог для создания нового трека (снизили с 0.7)
+
+# --- Буфер и матчинг ---
+track_buffer: 120            # кадров держим "потерянный" трек (удвоили — важно для перекрытий)
+match_thresh: 0.85           # IoU-порог ассоциации (повысили — строже матчим по геометрии)
 fuse_score: True
-proximity_thresh: 0.6
-appearance_thresh: 0.25
-gmc_method: sparseOptFlow
+
+# --- ReID (внешний вид) ---
 with_reid: True
 reid_model: osnet_x0_25
+proximity_thresh: 0.5        # насколько близко bbox должны быть для ReID-сравнения
+appearance_thresh: 0.3       # максимальное cosine-расстояние для ReID-матчинга (мягче)
+
+# --- Компенсация движения камеры ---
+gmc_method: sparseOptFlow    # стабилизирует треки при движении камеры
+
 # min_box_area: 500
-
-

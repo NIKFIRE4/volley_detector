@@ -42,15 +42,15 @@ class CourtLineDetector:
         output_video_frames = []
         for frame in video_frames:
             frame = self.draw_keypoints(frame, keypoints)
-            cv2.imshow("Keypoint Visualization", frame)
-            delay = 500
-            # Нажми 'q' для выхода
-            key = cv2.waitKey(delay)  
+            # cv2.imshow("Keypoint Visualization", frame)
+            # delay = 500
+            # # Нажми 'q' для выхода
+            # key = cv2.waitKey(delay)  
 
-            if key == ord('q'):  # Выход по 'q'
-                break
-            elif key == 32:  # Пробел - переход к следующему кадру вручную
-                cv2.waitKey(0)
+            # if key == ord('q'):  # Выход по 'q'
+            #     break
+            # elif key == 32:  # Пробел - переход к следующему кадру вручную
+            #     cv2.waitKey(0)
             output_video_frames.append(frame)
         cv2.destroyAllWindows()
             
